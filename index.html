@@ -115,6 +115,8 @@
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 const msgId = docSnap.id;
+
+                if (msgId === "initial") return;
                 
                 // 이 메시지를 쓴 사람이 Host인지 확인
                 const isMsgFromHost = data.uid === HOST_UID;
