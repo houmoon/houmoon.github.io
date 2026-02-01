@@ -85,14 +85,14 @@
                 name: currentUser.displayName,
                 text: text,
                 reply: "",
-                createdAt: new Date()
+                timestamp: new Date()
             });
             document.getElementById('msg-input').value = "";
         };
 
         // 메시지 실시간 불러오기
         function loadMessages() {
-            const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
+            const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
             onSnapshot(q, (snapshot) => {
                 const chatBox = document.getElementById('chat-box');
                 chatBox.innerHTML = "";
