@@ -10,20 +10,31 @@
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
         
         /* 말풍선 공통 */
-        .msg { margin-bottom: 15px; max-width: 70%; padding: 10px 15px; border-radius: 18px; font-size: 14px; position: relative; }
-        .guest { align-self: flex-start; background: #e4e6eb; color: black; }
-        .host { align-self: flex-end; background: #0084ff; color: white; }
+        /* 메시지 전체를 감싸는 틀 */
+        .message-wrapper { display: flex; margin-bottom: 20px; align-items: flex-start; /* 사진과 말풍선을 상단 정렬 */width: 100%;}
         
-        /* 프로필/이름 */
-        .name { font-size: 10px; color: #65676b; margin-bottom: 4px; display: block; }
+        /* 1. Guest(우측 정렬): wrapper를 반대로 정렬 */
+        .message-wrapper.guest { flex-direction: row-reverse; }
         
-        /* 답장 스타일 */
-        .reply { background: rgba(0,0,0,0.05); padding: 5px; border-radius: 8px; margin-top: 5px; font-style: italic; border-left: 2px solid #0084ff; color: #333; }
+        /* 2. Host(좌측 정렬): 기본값 */
+        .message-wrapper.host { flex-direction: row; }
         
-        /* 입력창 */
-        #input-area { border-top: 1px solid #ddd; padding: 15px; display: flex; }
-        #msg-input { flex: 1; border: none; background: #f0f2f5; border-radius: 20px; padding: 10px 15px; outline: none; }
-        #login-section { text-align: center; margin-top: 50px; }
+        /* 3. 원형 프로필 사진 */
+        .profile-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin: 0 10px; border: 1px solid #ddd; }
+        
+        /* 말풍선 공통 스타일 */
+        .bubble-container { max-width: 60%; display: flex; flex-direction: column; }
+        .bubble { padding: 10px 15px; border-radius: 18px; font-size: 14px; line-height: 1.4; word-break: break-all; }
+        .guest .bubble { background-color: #0084ff; color: white; }
+        .host .bubble { background-color: #e4e6eb; color: black; }
+        
+        /* 답장(Reply) 스타일 */
+        .reply-area { margin-top: 5px; padding: 8px; background-color: rgba(0,0,0,0.05);
+                     border-radius: 10px; font-size: 12px; border-left: 3px solid #0084ff; }
+        
+        .reply-btn { background: none; border: 1px solid #0084ff; color: #0084ff; border-radius: 12px; padding: 2px 8px;
+                     font-size: 11px; cursor: pointer; margin-top: 5px; align-self: flex-start; }
+        
     </style>
 </head>
 <body>
@@ -78,40 +89,62 @@
 
         // 메시지 전송
         document.getElementById('send-btn').onclick = async () => {
-            const text = document.getElementById('msg-input').value;
-            if(!text) return;
+            const input = document.getElementById('msg-input');
+            if (!input.value.trim()) return;
+        
             await addDoc(collection(db, "messages"), {
                 uid: currentUser.uid,
                 name: currentUser.displayName,
-                text: text,
-                reply: "",
+                img_url: currentUser.photoURL, // 로그인한 유저의 프로필 사진 URL 저장
+                text: input.value,
+                reply: "", // 답장은 초기값 빈칸
                 timestamp: new Date()
             });
-            document.getElementById('msg-input').value = "";
+        
+            input.value = "";
         };
 
         // 메시지 실시간 불러오기
         function loadMessages() {
-            const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
-            onSnapshot(q, (snapshot) => {
-                const chatBox = document.getElementById('chat-box');
-                chatBox.innerHTML = "";
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    const isHost = data.uid === HOST_UID;
-                    const msgDiv = document.createElement('div');
-                    msgDiv.className = `msg ${isHost ? 'host' : 'guest'}`;
-                    msgDiv.innerHTML = `
-                        <span class="name">${data.name}</span>
-                        <div>${data.text}</div>
-                        ${data.reply ? `<div class="reply">↳ 관리자 답변: ${data.reply}</div>` : ''}
-                        ${currentUser.uid === HOST_UID && !data.reply && !isHost ? 
-                            `<button onclick="addReply('${docSnap.id}')" style="font-size:10px">답변하기</button>` : ''}
-                    `;
-                    chatBox.appendChild(msgDiv);
-                });
-                chatBox.scrollTop = chatBox.scrollHeight;
+        const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+        
+        onSnapshot(q, (snapshot) => {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML = ""; // 화면 초기화
+    
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const msgId = docSnap.id;
+                
+                // 이 메시지를 쓴 사람이 Host인지 확인
+                const isMsgFromHost = data.uid === HOST_UID;
+                // 화면에 그릴 클래스 결정 (Guest면 우측, Host면 좌측)
+                const sideClass = isMsgFromHost ? 'host' : 'guest';
+    
+                const wrapper = document.createElement('div');
+                wrapper.className = `message-wrapper ${sideClass}`;
+    
+                // HTML 구조 만들기
+                wrapper.innerHTML = `
+                    <img src="${data.img_url || '기본이미지주소'}" class="profile-img">
+                    
+                    <div class="bubble-container">
+                        <span style="font-size:11px; margin-bottom:2px;">${data.name}</span>
+                        <div class="bubble">${data.text}</div>
+                        
+                        ${data.reply ? `<div class="reply-area"><strong>Host:</strong> ${data.reply}</div>` : ''}
+                        
+                        ${currentUser.uid === HOST_UID && !isMsgFromHost && !data.reply ? 
+                            `<button class="reply-btn" onclick="addReply('${msgId}')">답변하기</button>` : ''}
+                    </div>
+                `;
+                
+                chatBox.appendChild(wrapper);
             });
+            
+            // 메시지 추가 시 하단으로 자동 스크롤
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
         }
 
         // 답변 기능 (관리자 전용)
